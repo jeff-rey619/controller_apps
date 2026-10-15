@@ -175,6 +175,8 @@ Each iteration creates a file in `spec/`:
 - `spec/iteration-07-startup-fixes.md` — Engine init, rendering, layout & result-screen fixes
 - `spec/iteration-08-dual-orbit.md` — Second challenge (Dual Orbit)
 - `spec/iteration-09-neon-ui-accessibility.md` — Neon UI redesign + accessibility
+- `spec/iteration-10-gamepad-ui-navigation.md` — Full gamepad UI control
+- `spec/iteration-11-dual-stick-rush.md` — Dual Stick Rush (Twin Target)
 - `spec/known-issues.md` — Browser/controller quirks
 
 ---

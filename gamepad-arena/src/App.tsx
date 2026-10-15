@@ -4,7 +4,11 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useGamepad } from './hooks/useGamepad'
+import { useFocusNavigation } from './hooks/useFocusNavigation'
+import { useGamepadNavigation } from './hooks/useGamepadNavigation'
 import { normalizeGamepadInput, DEFAULT_BUTTON_MAPPING, type ButtonMapping } from './utils/input'
+import { adjustControl } from './utils/controlAdjust'
+import { getFocusableElements, type NavDirection } from './utils/focusNavigation'
 import { GameLoop } from './engine/gameLoop'
 import { Renderer } from './engine/renderer'
 import { setReducedMotion } from './engine/palette'
@@ -87,8 +91,10 @@ function App() {
   const [lastResult, setLastResult] = useState<ScoreResult | null>(null)
   const [countdownValue, setCountdownValue] = useState<number | null>(null)
   const [osReducedMotion, setOsReducedMotion] = useState(false)
+  const [navMode, setNavMode] = useState(false)
 
   const canvasContainerRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const gameLoopRef = useRef<GameLoop | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
   const currentChallengeRef = useRef<Challenge | null>(null)
@@ -239,6 +245,85 @@ function App() {
     challenge.reset()
     gameLoopRef.current.startChallenge(challenge.duration)
   }, [gamepad])
+
+  // ---- Gamepad-driven UI navigation ------------------------------------
+  const navEnabled = gameState !== 'running' && gameState !== 'countdown'
+
+  const getNavScope = useCallback(
+    () => (showSettings ? settingsPanelRef.current : overlayRef.current),
+    [showSettings]
+  )
+
+  const { move: moveFocus } = useFocusNavigation(getNavScope)
+
+  const handleNavigate = useCallback((direction: NavDirection) => {
+    const active = document.activeElement as HTMLElement | null
+    if (active && adjustControl(active, direction)) return
+    moveFocus(direction)
+  }, [moveFocus])
+
+  const handleConfirm = useCallback(() => {
+    const active = document.activeElement as HTMLElement | null
+    if (!active) return
+    if (active instanceof HTMLSelectElement) return
+    if (active instanceof HTMLInputElement && active.type === 'range') return
+    active.click()
+  }, [])
+
+  const handleBack = useCallback(() => {
+    if (showSettings) {
+      setShowSettings(false)
+      return
+    }
+    const state = gameLoopRef.current?.getState()
+    if (state === 'running' || state === 'paused' || state === 'result') {
+      gameLoopRef.current?.reset()
+    }
+  }, [showSettings])
+
+  const handleNavStart = useCallback(() => {
+    if (!showSettings && gameState === 'idle' && connected) {
+      startChallenge(selectedChallengeId)
+    }
+  }, [showSettings, gameState, connected, startChallenge, selectedChallengeId])
+
+  const handleNavActivity = useCallback(() => setNavMode(true), [])
+
+  useGamepadNavigation({
+    gamepad,
+    enabled: navEnabled,
+    deadzone: settings.deadzone,
+    mapping: currentMapping,
+    onDirection: handleNavigate,
+    onConfirm: handleConfirm,
+    onBack: handleBack,
+    onStart: handleNavStart,
+    onActivity: handleNavActivity,
+  })
+
+  useEffect(() => {
+    if (!navMode) return
+    const off = () => setNavMode(false)
+    window.addEventListener('pointerdown', off)
+    window.addEventListener('mousemove', off)
+    return () => {
+      window.removeEventListener('pointerdown', off)
+      window.removeEventListener('mousemove', off)
+    }
+  }, [navMode])
+
+  useEffect(() => {
+    if (!navEnabled || !connected) return
+    const scope = getNavScope()
+    if (!scope) return
+    const items = getFocusableElements(scope)
+    if (items.length === 0) return
+    const active = document.activeElement as HTMLElement | null
+    if (active && items.includes(active)) return
+    const selectedCard = scope.querySelector<HTMLElement>('.challenge-card.selected')
+    const target = selectedCard && items.includes(selectedCard) ? selectedCard : items[0]
+    target.focus()
+  }, [navEnabled, connected, gameState, showSettings, getNavScope])
 
   useEffect(() => {
     if (gameState !== 'result' || !currentChallengeRef.current) return
@@ -525,7 +610,10 @@ function App() {
   const containerClass =
     'canvas-container' +
     (reducedMotionActive ? ' reduced-motion' : '') +
-    (settings.highContrast ? ' high-contrast' : '')
+    (settings.highContrast ? ' high-contrast' : '') +
+    (navMode ? ' gamepad-nav' : '')
+
+  const startHint = gameState === 'idle' ? 'Play' : 'Pause / Resume'
 
   return (
     <div className={containerClass} ref={canvasContainerRef}>
@@ -535,7 +623,14 @@ function App() {
         <ControllerGlyph className="art-xbox art-3" />
         <ControllerGlyph className="art-ps art-4" />
       </div>
-      <div className="ui-overlay">{renderScreen()}{renderSettings()}</div>
+      <div className="ui-overlay" ref={overlayRef}>{renderScreen()}{renderSettings()}</div>
+      {connected && navEnabled && (
+        <div className="action-hints" aria-hidden="true">
+          <span><kbd>A</kbd> Select</span>
+          <span><kbd>B</kbd> Back</span>
+          <span><kbd>☰</kbd> {startHint}</span>
+        </div>
+      )}
       {gameState === 'countdown' && countdownValue !== null && (
         <div className="countdown-overlay" aria-live="polite" aria-atomic="true"><span className={"countdown-number " + (countdownValue === 0 ? 'countdown-go' : '')}>{countdownValue === 0 ? 'GO!' : countdownValue}</span></div>
       )}
