@@ -125,38 +125,38 @@ interface Challenge {
 - **Accuracy:** Deviation from perfect circle + phase difference
 
 ### 4.2 Implementation
-- [ ] `DualOrbitChallenge` class
-- [ ] Stick angle tracking (atan2)
-- [ ] Direction detection (CW/CCW)
-- [ ] Phase tracking (both sticks moving opposite)
-- [ ] Visual: two orbit rings with progress arcs
-- [ ] Scoring formula: `baseScore * accuracy * coordination`
+- [x] `DualOrbitChallenge` class
+- [x] Stick angle tracking (atan2 + unwrap via `angleDiff`)
+- [x] Direction detection (CW/CCW)
+- [x] Phase tracking (both sticks moving opposite)
+- [x] Visual: two orbit rings with progress arcs
+- [x] Scoring formula: completion + simultaneity + smoothness + speed (see `iteration-08-dual-orbit.md`)
 
 ---
 
 ## Phase 5: Polish & Playtest (Day 5-6)
 
 ### 5.1 UI/UX
-- [ ] Main menu: challenge selector
-- [ ] Controller connection screen
-- [ ] Settings: deadzone, vibration (if supported)
-- [ ] Keyboard fallback for testing (WASD + Space)
+- [x] Main menu: challenge selector
+- [x] Controller connection screen
+- [x] Settings: deadzone, vibration (if supported)
+- [x] Keyboard fallback for testing (Space = A, Enter = Start, Escape = menu)
 
 ### 5.2 Audio
 - [ ] Web Audio API: beeps, press sounds, success/fail stings
-- [ ] Mute toggle
+- [x] Mute toggle (audioEnabled setting)
 
 ### 5.3 Accessibility
-- [ ] High contrast mode
-- [ ] Reduced motion
-- [ ] Screen reader announcements for scores
+- [x] High contrast mode
+- [x] Reduced motion
+- [x] Screen reader announcements for scores
 
 ### 5.4 Testing Checklist
 - [ ] Xbox controller (Chrome/Firefox/Safari)
 - [ ] PS4/PS5 controller
 - [ ] Switch Pro controller
-- [ ] Disconnect/reconnect mid-game
-- [ ] Tab focus loss/restore
+- [x] Disconnect/reconnect mid-game
+- [x] Tab focus loss/restore
 - [ ] Multiple gamepads connected
 
 ---
@@ -168,8 +168,10 @@ Each iteration creates a file in `spec/`:
 - `spec/iteration-02-input-foundation.md` — Gamepad hook, normalization
 - `spec/iteration-03-engine.md` — Game loop, renderer
 - `spec/iteration-04-button-blitz.md` — First challenge
-- `spec/iteration-05-dual-orbit.md` — Second challenge
-- `spec/iteration-06-polish.md` — Menu, audio, settings
+- `spec/iteration-05-fixes.md` — Bug fixes & controller compatibility
+- `spec/iteration-06-button-mapping.md` — Flexible button mapping & 8BitDo support
+- `spec/iteration-07-startup-fixes.md` — Engine init, rendering, layout & result-screen fixes
+- `spec/iteration-08-dual-orbit.md` — Second challenge (Dual Orbit)
 - `spec/known-issues.md` — Browser/controller quirks
 
 ---

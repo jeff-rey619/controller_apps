@@ -24,8 +24,8 @@
 - Deadzone applies to both sticks equally
 
 ### Challenges
-- Only Button Blitz implemented
-- Dual Orbit not yet implemented
+- Button Blitz and Dual Orbit implemented
+- Precision Run, Combo Master, Trigger Control, Rhythm Combo not yet implemented
 - No daily challenges or leaderboards
 - No replay/ghost system
 
@@ -53,7 +53,8 @@
 
 ### For Testing Without Controller
 - Use `?debug=1` query parameter for debug overlay
-- Keyboard fallback not yet implemented (planned for Phase 5)
+- Keyboard fallback: **Space** = A, **Enter** = Start (pause/resume), **Escape** = back to menu
+- Note: the on-screen START button stays disabled until a gamepad is detected
 
 ### For Safari Users
 - Must interact with page first (click) before Gamepad API activates
@@ -62,11 +63,19 @@
 ## Future Fixes
 1. Add controller selection UI when multiple connected
 2. Implement vibration using GamepadHapticActuator
-3. Add keyboard fallback for testing
-4. Implement Dual Orbit challenge
-5. Add Web Audio sound effects
-6. Configure Playwright for E2E testing
-7. Add font loading with fallbacks
-8. Implement daily challenge system
-9. Add replay recording/playback
-10. Consider IndexedDB for larger data storage
+3. Implement remaining challenges (Precision Run, Combo Master, Trigger Control, Rhythm Combo)
+4. Add Web Audio sound effects
+5. Configure Playwright for E2E testing
+6. Add font loading with fallbacks
+7. Implement daily challenge system
+8. Add replay recording/playback
+9. Consider IndexedDB for larger data storage
+
+## Recently Fixed
+- START button did nothing — the canvas container ref was never attached, so the
+  engine never initialised (iteration 7)
+- Gameplay rendered to a duplicate off-screen canvas (iteration 7)
+- Settings dialog overflowed the viewport (iteration 7)
+- "NEW PERSONAL BEST!" banner never appeared (iteration 7)
+- Dual Orbit challenge implemented (iteration 8)
+- Lint is green: `no-case-declarations` and `no-explicit-any` issues resolved (iteration 7)
