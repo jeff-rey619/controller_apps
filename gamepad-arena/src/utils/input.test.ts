@@ -96,4 +96,45 @@ describe('input utils', () => {
       expect(getRotationDirection(0, 0.05)).toBe(0)
     })
   })
+
+  describe('simultaneous dual-stick input', () => {
+    const mkPad = (axes: number[]): Gamepad =>
+      ({
+        id: 'Test Gamepad',
+        index: 0,
+        connected: true,
+        timestamp: performance.now(),
+        mapping: 'standard',
+        axes,
+        buttons: Array(17).fill(null).map(() => ({ pressed: false, value: 0, touched: false })),
+        vibrationActuator: null as unknown as Gamepad['vibrationActuator'],
+      }) as Gamepad
+
+    it('reads both sticks at once, each independent of the other', () => {
+      // Left pushed up-right, right pushed down-left, in the same frame.
+      const input = normalizeGamepadInput(mkPad([0.8, -0.8, -0.8, 0.8]), 0.15)
+      expect(input.axes.leftStick.x).toBeGreaterThan(0)
+      expect(input.axes.leftStick.y).toBeLessThan(0)
+      expect(input.axes.rightStick.x).toBeLessThan(0)
+      expect(input.axes.rightStick.y).toBeGreaterThan(0)
+      // The two sticks are mirror images, confirming no cross-talk.
+      expect(input.axes.leftStick.x).toBeCloseTo(-input.axes.rightStick.x, 6)
+      expect(input.axes.leftStick.y).toBeCloseTo(-input.axes.rightStick.y, 6)
+    })
+
+    it('applies the deadzone to both sticks independently', () => {
+      // Left inside deadzone (drift), right clearly outside.
+      const input = normalizeGamepadInput(mkPad([0.1, -0.1, 0.9, 0.0]), 0.15)
+      expect(input.axes.leftStick.x).toBe(0)
+      expect(input.axes.leftStick.y).toBe(0)
+      expect(input.axes.rightStick.x).toBeGreaterThan(0)
+    })
+
+    it('does not crash on a malformed/partial gamepad (e.g. mid-disconnect)', () => {
+      expect(() => normalizeGamepadInput(mkPad([]), 0.15)).not.toThrow()
+      const input = normalizeGamepadInput(mkPad([]), 0.15)
+      expect(input.axes.leftStick.x).toBe(0)
+      expect(input.axes.rightStick.y).toBe(0)
+    })
+  })
 })

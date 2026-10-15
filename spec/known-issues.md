@@ -62,7 +62,8 @@
 ### Testing
 - No E2E tests (Playwright not configured for the project)
 - No visual regression tests
-- Limited unit test coverage (only input utils)
+- Unit tests cover input utils, Dual Orbit scoring, and the game-loop lifecycle/
+  timing (33 tests); no App-component render tests or E2E yet
 
 ## Workarounds
 
@@ -96,3 +97,5 @@
 - Dual Orbit challenge implemented (iteration 8)
 - Lint is green: `no-case-declarations` and `no-explicit-any` issues resolved (iteration 7)
 - Neon UI redesign, background controller art and WCAG 2.1 AA accessibility (iteration 9)
+- Central timing config + deterministic `GameLoop.step()` seam + lifecycle/timing
+  and dual-stick tests (iteration 10)

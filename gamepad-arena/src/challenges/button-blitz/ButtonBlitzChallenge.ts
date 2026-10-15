@@ -6,12 +6,13 @@
 import type { Challenge, ChallengeState, NormalizedInput, ScoreResult } from '../../types'
 import { Renderer } from '../../engine/renderer'
 import { PALETTE, gradeColor, isReducedMotion } from '../../engine/palette'
+import { TIMING } from '../../config/timing'
 
 export class ButtonBlitzChallenge implements Challenge {
   id = 'button-blitz'
   name = 'Button Blitz'
   description = 'Press A as fast as you can!'
-  duration = 10 // seconds
+  duration = TIMING.challengeDurations['button-blitz']
 
   private renderer: Renderer | null = null
   private pressCount = 0
