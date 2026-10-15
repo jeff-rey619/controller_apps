@@ -14,6 +14,7 @@
 
 import type { Challenge, ChallengeState, NormalizedInput, ScoreResult } from '../../types'
 import { Renderer } from '../../engine/renderer'
+import { PALETTE, gradeColor } from '../../engine/palette'
 import { getStickAngle, getStickMagnitude, angleDiff } from '../../utils/input'
 
 const TWO_PI = Math.PI * 2
@@ -22,6 +23,10 @@ const MIN_MAGNITUDE = 0.35
 const MAX_FRAME_DELTA = 0.8
 const MIN_MOVE = 0.01
 const MAX_REVERSALS = 20
+
+// Left stick = Xbox green, right stick = PlayStation blue.
+const LEFT_COLOR = PALETTE.xboxNeon
+const RIGHT_COLOR = PALETTE.ps
 
 interface StickTrack {
   lastAngle: number | null
@@ -164,35 +169,36 @@ export class DualOrbitChallenge implements Challenge {
     const centerX = width / 2
     const centerY = height / 2
 
-    r.clear()
-    r.drawVignette('rgba(0,0,0,0.6)')
-    r.drawScanlines(0.08)
+    r.drawBackdrop()
 
     r.drawStrokeText('DUAL ORBIT', centerX, 56, {
       font: '32px "JetBrains Mono", monospace',
-      fillColor: '#00ffff',
+      fillColor: PALETTE.xboxNeon,
       strokeColor: '#000',
       lineWidth: 6,
+      glow: 18,
     })
 
     r.drawCenteredText('LEFT STICK  CW  ↻      RIGHT STICK  CCW  ↺', centerX, 96, {
       font: '16px "JetBrains Mono", monospace',
-      color: '#ff0066',
+      color: PALETTE.inkDim,
     })
 
     const radius = Math.max(52, Math.min(width, height) * 0.15)
     const spread = radius * 3.4
     const ringY = centerY - 10
 
-    this.drawOrbit(centerX - spread / 2, ringY, radius, this.leftVec, this.left.required, '#00ffff')
-    this.drawOrbit(centerX + spread / 2, ringY, radius, this.rightVec, this.right.required, '#ff0066')
+    this.drawOrbit(centerX - spread / 2, ringY, radius, this.leftVec, this.left.required, LEFT_COLOR, 'L')
+    this.drawOrbit(centerX + spread / 2, ringY, radius, this.rightVec, this.right.required, RIGHT_COLOR, 'R')
 
     const rotations = this.rotations()
     const progress = Math.min(1, rotations / REQUIRED_ROTATIONS)
     r.drawRing(centerX, ringY, radius * 0.42, progress, {
-      bgColor: '#1a1a2e',
-      fgColor: progress >= 1 ? '#00ff88' : '#ffd700',
+      bgColor: PALETTE.ringTrack,
+      fgColor: progress >= 1 ? PALETTE.success : PALETTE.gold,
       lineWidth: 8,
+      glow: 16,
+      glowColor: progress >= 1 ? PALETTE.success : PALETTE.gold,
     })
     r.drawStrokeText(`${rotations.toFixed(1)}/${REQUIRED_ROTATIONS}`, centerX, ringY, {
       font: 'bold 28px "JetBrains Mono", monospace',
@@ -203,17 +209,19 @@ export class DualOrbitChallenge implements Challenge {
 
     const remaining = Math.max(0, this.duration - this.elapsed)
     r.drawProgressBar(centerX - 140, height - 110, 280, 12, Math.min(1, this.elapsed / this.duration), {
-      bgColor: '#1a1a2e',
-      fgColor: remaining > 5 ? '#00ffff' : '#ff4444',
-      borderColor: '#2a2a3e',
+      bgColor: PALETTE.ringTrack,
+      fgColor: remaining > 5 ? PALETTE.xboxNeon : PALETTE.red,
+      borderColor: PALETTE.stroke,
+      glow: 10,
     })
     r.drawCenteredText(`${remaining.toFixed(1)}s`, centerX, height - 76, {
       font: '20px "JetBrains Mono", monospace',
-      color: '#ffffff',
+      color: PALETTE.ink,
     })
     r.drawCenteredText(`SCORE: ${this.score}   GRADE: ${this.grade}`, centerX, height - 40, {
       font: '20px "JetBrains Mono", monospace',
-      color: this.getGradeColor(this.grade),
+      color: gradeColor(this.grade),
+      glow: 12,
     })
   }
 
@@ -223,38 +231,40 @@ export class DualOrbitChallenge implements Challenge {
     radius: number,
     vec: { x: number; y: number },
     required: number,
-    color: string
+    color: string,
+    label: string
   ): void {
     const r = this.renderer!
-    r.drawCircle(x, y, radius, { strokeColor: '#2a2a3e', lineWidth: 3 })
+    r.drawCircle(x, y, radius, { strokeColor: PALETTE.stroke, lineWidth: 3 })
+
+    // Stick identity label (L / R) so the two rings aren't distinguished by colour alone.
+    r.drawCenteredText(label, x, y - radius - 16, {
+      font: 'bold 16px "JetBrains Mono", monospace',
+      color,
+      glow: 8,
+    })
 
     const progress = Math.min(1, required / (TWO_PI * REQUIRED_ROTATIONS))
     if (progress > 0) {
       r.drawArc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + TWO_PI * progress, {
         strokeColor: color,
         lineWidth: 6,
+        glow: 14,
+        glowColor: color,
       })
     }
 
     const magnitude = getStickMagnitude(vec.x, vec.y)
+    const live = magnitude >= MIN_MAGNITUDE
     const px = x + vec.x * radius * 0.82
     const py = y + vec.y * radius * 0.82
     r.drawCircle(px, py, Math.max(6, radius * 0.12), {
-      fillColor: magnitude >= MIN_MAGNITUDE ? color : '#555',
+      fillColor: live ? color : '#4a5560',
       strokeColor: '#fff',
       lineWidth: 2,
+      glow: live ? 14 : 0,
+      glowColor: color,
     })
-  }
-
-  private getGradeColor(grade: ScoreResult['grade']): string {
-    switch (grade) {
-      case 'S': return '#ffd700'
-      case 'A': return '#ff0066'
-      case 'B': return '#00ffff'
-      case 'C': return '#88ff88'
-      case 'D': return '#ffaa00'
-      default: return '#ff4444'
-    }
   }
 
   getScore(): ScoreResult {
