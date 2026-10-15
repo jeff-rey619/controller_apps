@@ -6,3 +6,7 @@
 - Wants Xbox-forward branding/colors as the dominant palette, with only light PlayStation accents. Confidence: 0.6
 - Likes decorative controller icon artwork placed subtly in the background. Confidence: 0.5
 - Wants accessibility to be improved/hardened (e.g. WCAG-level contrast, focus, reduced motion), not just noted. Confidence: 0.6
+- Prefers modern frosted-glass / blurred-gradient surfaces (glassmorphism) with minimal hairline borders over solid neon outlines. Confidence: 0.6
+- Prefers adopting established libraries/frameworks instead of hand-rolling (e.g. React Router for routing, Phaser or motion/react for a game engine / UI animation). Confidence: 0.55
+- Wants strict layering for modals/overlays so they never overlap or stack wrongly, with an explicit documented z-index scale. Confidence: 0.5
+- Wants navigation to guard against stray or still-held controller input (input lock-out after transitions; only the back button exits a result screen, not confirm). Confidence: 0.5
