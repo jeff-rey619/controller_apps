@@ -15,6 +15,7 @@
 import type { Challenge, ChallengeState, NormalizedInput, ScoreResult } from '../../types'
 import { Renderer } from '../../engine/renderer'
 import { PALETTE, gradeColor } from '../../engine/palette'
+import { TIMING } from '../../config/timing'
 import { getStickAngle, getStickMagnitude, angleDiff } from '../../utils/input'
 
 const TWO_PI = Math.PI * 2
@@ -42,7 +43,7 @@ export class DualOrbitChallenge implements Challenge {
   id = 'dual-orbit'
   name = 'Dual Orbit'
   description = 'Spin L-stick CW and R-stick CCW together'
-  duration = 15
+  duration = TIMING.challengeDurations['dual-orbit']
 
   private renderer: Renderer | null = null
 

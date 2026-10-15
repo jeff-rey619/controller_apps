@@ -62,7 +62,8 @@
 ### Testing
 - No E2E tests (Playwright not configured for the project)
 - No visual regression tests
-- Limited unit test coverage (only input utils)
+- Unit tests cover input utils, Dual Orbit scoring, and the game-loop lifecycle/
+  timing (33 tests); no App-component render tests or E2E yet
 
 ## Workarounds
 

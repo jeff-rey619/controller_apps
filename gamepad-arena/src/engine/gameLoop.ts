@@ -3,6 +3,7 @@
  */
 
 import type { GameState, NormalizedInput } from '../types'
+import { TIMING } from '../config/timing'
 
 const TARGET_FPS = 60
 const FIXED_DT = 1 / TARGET_FPS
@@ -21,7 +22,7 @@ export class GameLoop {
   private drawFn: DrawFn | null = null
   private onStateChange: StateChangeFn | null = null
   private input: NormalizedInput = this.getEmptyInput()
-  private countdownValue = 3
+  private countdownValue: number = TIMING.countdownSeconds
   private countdownTimer = 0
   private challengeDuration = 0
   private challengeTimer = 0
@@ -85,8 +86,8 @@ export class GameLoop {
   startChallenge(duration: number): void {
     this.challengeDuration = duration
     this.challengeTimer = duration
-    this.countdownValue = 3
-    this.countdownTimer = 3
+    this.countdownValue = TIMING.countdownSeconds
+    this.countdownTimer = TIMING.countdownSeconds
     this.setState('countdown')
   }
 
@@ -105,7 +106,7 @@ export class GameLoop {
   reset(): void {
     this.setState('idle')
     this.challengeTimer = 0
-    this.countdownValue = 3
+    this.countdownValue = TIMING.countdownSeconds
     this.countdownTimer = 0
   }
 
@@ -146,12 +147,22 @@ export class GameLoop {
 
   private tick = (): void => {
     const now = performance.now()
-    const frameTime = Math.min((now - this.lastTime) / 1000, 0.25) // Cap at 250ms
+    const frameTime = (now - this.lastTime) / 1000
     this.lastTime = now
+    this.step(frameTime)
+    this.animationFrameId = requestAnimationFrame(this.tick)
+  }
 
-    this.accumulator += frameTime
+  /**
+   * Advance the simulation by `frameTime` seconds, running fixed-timestep
+   * updates and one render. This is the single integration point the render
+   * loop (and tests) drive the loop through — gameplay never advances off the
+   * raw frame count. `frameTime` is clamped to [0, 0.25]s to absorb negative
+   * clocks and to avoid a spiral-of-death after a long pause or tab-blur.
+   */
+  step(frameTime: number): void {
+    this.accumulator += Math.min(Math.max(0, frameTime), 0.25)
 
-    // Fixed timestep updates
     let substeps = 0
     while (this.accumulator >= FIXED_DT && substeps < MAX_SUBSTEPS) {
       this.fixedUpdate(FIXED_DT)
@@ -162,8 +173,6 @@ export class GameLoop {
     // Render with interpolation
     const alpha = this.accumulator / FIXED_DT
     this.drawFn?.(alpha)
-
-    this.animationFrameId = requestAnimationFrame(this.tick)
   }
 
   private fixedUpdate(dt: number): void {
