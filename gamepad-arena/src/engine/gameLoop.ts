@@ -1,0 +1,199 @@
+/**
+ * Fixed timestep game loop with interpolation
+ */
+
+import type { GameState, NormalizedInput } from '../types'
+
+const TARGET_FPS = 60
+const FIXED_DT = 1 / TARGET_FPS
+const MAX_SUBSTEPS = 5
+
+type UpdateFn = (dt: number, input: NormalizedInput) => void
+type DrawFn = (interpolationAlpha: number) => void
+type StateChangeFn = (state: GameState) => void
+
+export class GameLoop {
+  private state: GameState = 'idle'
+  private lastTime = 0
+  private accumulator = 0
+  private animationFrameId: number | null = null
+  private updateFn: UpdateFn | null = null
+  private drawFn: DrawFn | null = null
+  private onStateChange: StateChangeFn | null = null
+  private input: NormalizedInput = this.getEmptyInput()
+  private countdownValue = 3
+  private countdownTimer = 0
+  private challengeDuration = 0
+  private challengeTimer = 0
+
+  constructor() {
+    // Handle visibility change
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+  }
+
+  private handleVisibilityChange = (): void => {
+    if (document.hidden && this.state === 'running') {
+      this.pause()
+    }
+  }
+
+  private getEmptyInput(): NormalizedInput {
+    return {
+      axes: {
+        leftStick: { x: 0, y: 0 },
+        rightStick: { x: 0, y: 0 },
+        leftTrigger: 0,
+        rightTrigger: 0,
+      },
+      buttons: {
+        a: false,
+        b: false,
+        x: false,
+        y: false,
+        lb: false,
+        rb: false,
+        back: false,
+        start: false,
+        ls: false,
+        rs: false,
+        dpadUp: false,
+        dpadDown: false,
+        dpadLeft: false,
+        dpadRight: false,
+      },
+      rawAxes: [],
+      rawButtons: [],
+    }
+  }
+
+  setUpdateFn(fn: UpdateFn): void {
+    this.updateFn = fn
+  }
+
+  setDrawFn(fn: DrawFn): void {
+    this.drawFn = fn
+  }
+
+  setOnStateChange(fn: StateChangeFn): void {
+    this.onStateChange = fn
+  }
+
+  setInput(input: NormalizedInput): void {
+    this.input = input
+  }
+
+  startChallenge(duration: number): void {
+    this.challengeDuration = duration
+    this.challengeTimer = duration
+    this.countdownValue = 3
+    this.countdownTimer = 3
+    this.setState('countdown')
+  }
+
+  pause(): void {
+    if (this.state === 'running' || this.state === 'countdown') {
+      this.setState('paused')
+    }
+  }
+
+  resume(): void {
+    if (this.state === 'paused') {
+      this.setState('running')
+    }
+  }
+
+  reset(): void {
+    this.setState('idle')
+    this.challengeTimer = 0
+    this.countdownValue = 3
+    this.countdownTimer = 0
+  }
+
+  getState(): GameState {
+    return this.state
+  }
+
+  getCountdownValue(): number {
+    return this.countdownValue
+  }
+
+  getProgress(): number {
+    if (this.challengeDuration <= 0) return 0
+    return 1 - this.challengeTimer / this.challengeDuration
+  }
+
+  getTimeRemaining(): number {
+    return Math.max(0, this.challengeTimer)
+  }
+
+  private setState(newState: GameState): void {
+    this.state = newState
+    this.onStateChange?.(newState)
+  }
+
+  start(): void {
+    if (this.animationFrameId !== null) return
+    this.lastTime = performance.now()
+    this.tick()
+  }
+
+  stop(): void {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId)
+      this.animationFrameId = null
+    }
+  }
+
+  private tick = (): void => {
+    const now = performance.now()
+    const frameTime = Math.min((now - this.lastTime) / 1000, 0.25) // Cap at 250ms
+    this.lastTime = now
+
+    this.accumulator += frameTime
+
+    // Fixed timestep updates
+    let substeps = 0
+    while (this.accumulator >= FIXED_DT && substeps < MAX_SUBSTEPS) {
+      this.fixedUpdate(FIXED_DT)
+      this.accumulator -= FIXED_DT
+      substeps++
+    }
+
+    // Render with interpolation
+    const alpha = this.accumulator / FIXED_DT
+    this.drawFn?.(alpha)
+
+    this.animationFrameId = requestAnimationFrame(this.tick)
+  }
+
+  private fixedUpdate(dt: number): void {
+    switch (this.state) {
+      case 'countdown':
+        this.countdownTimer -= dt
+        this.countdownValue = Math.ceil(this.countdownTimer)
+        if (this.countdownTimer <= 0) {
+          this.setState('running')
+        }
+        break
+
+      case 'running':
+        this.challengeTimer -= dt
+        this.updateFn?.(dt, this.input)
+        if (this.challengeTimer <= 0) {
+          this.setState('result')
+        }
+        break
+
+      case 'paused':
+      case 'result':
+      case 'idle':
+        // No fixed updates in these states
+        break
+    }
+  }
+
+  destroy(): void {
+    this.stop()
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+  }
+}
