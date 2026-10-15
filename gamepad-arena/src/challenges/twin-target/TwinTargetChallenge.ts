@@ -1,21 +1,29 @@
 /**
- * Twin Target — Dual Stick Rush MVP
+ * Twin Target — Dual Stick Rush
  *
- * Two cursors (cyan left, purple right) must reach their targets before the
- * round timer expires. Each successful round awards points and spawns a new
- * target pair. A 60-second session ends with score, streak, and result screen.
+ * Two cursors (left = Xbox green, right = PlayStation blue) must reach their
+ * targets before the round timer expires. Each successful round awards points
+ * and spawns a new target pair. The session ends with score, streak and grade.
+ *
+ * Input arrives already normalized and deadzoned (App applies the user's
+ * deadzone setting via normalizeGamepadInput), so this challenge uses the
+ * stick vectors directly — no second deadzone pass.
  */
 
 import type { Challenge, ChallengeState, NormalizedInput, ScoreResult } from '../../types'
 import { Renderer } from '../../engine/renderer'
-import { applyDeadzone } from '../../utils/input'
+import { PALETTE, gradeColor } from '../../engine/palette'
+import { TIMING } from '../../config/timing'
 
-const SESSION_DURATION = 60 // seconds
-const ROUND_TIME = 4 // seconds per round
+const ROUND_TIME = TIMING.twinTargetRoundSeconds // seconds per round
 const TARGET_RADIUS = 24
 const CURSOR_RADIUS = 12
 const MOVE_SPEED = 400 // pixels per second at full stick
-const DEADZONE = 0.15
+
+// Left cursor = Xbox green, right cursor = PlayStation blue (paired with L/R
+// labels so the two are never distinguished by colour alone).
+const LEFT_COLOR = PALETTE.xboxNeon
+const RIGHT_COLOR = PALETTE.ps
 
 interface Cursor {
   x: number
@@ -27,6 +35,7 @@ interface Cursor {
   zoneTop: number
   zoneBottom: number
   color: string
+  label: string
 }
 
 interface RoundResult {
@@ -39,7 +48,7 @@ export class TwinTargetChallenge implements Challenge {
   id = 'twin-target'
   name = 'Dual Stick Rush'
   description = 'Move both cursors to their targets fast!'
-  duration = SESSION_DURATION
+  duration = TIMING.challengeDurations['twin-target']
 
   private renderer: Renderer | null = null
   private leftCursor: Cursor | null = null
@@ -66,14 +75,9 @@ export class TwinTargetChallenge implements Challenge {
     this.sessionTime += dt
     this.roundTime += dt
 
-    const leftInput = {
-      x: applyDeadzone(input.axes.leftStick.x, DEADZONE),
-      y: applyDeadzone(input.axes.leftStick.y, DEADZONE),
-    }
-    const rightInput = {
-      x: applyDeadzone(input.axes.rightStick.x, DEADZONE),
-      y: applyDeadzone(input.axes.rightStick.y, DEADZONE),
-    }
+    // Input is already normalized + deadzoned upstream; use it directly.
+    const leftInput = input.axes.leftStick
+    const rightInput = input.axes.rightStick
 
     if (this.leftCursor) {
       this.moveCursor(this.leftCursor, leftInput, dt)
@@ -164,7 +168,8 @@ export class TwinTargetChallenge implements Challenge {
       zoneRight: width / 2 - 20,
       zoneTop: 60,
       zoneBottom: height - 60,
-      color: '#28D7E5', // cyan
+      color: LEFT_COLOR,
+      label: 'L',
     }
 
     // Right zone
@@ -177,7 +182,8 @@ export class TwinTargetChallenge implements Challenge {
       zoneRight: width - 20,
       zoneTop: 60,
       zoneBottom: height - 60,
-      color: '#B46BFF', // purple
+      color: RIGHT_COLOR,
+      label: 'R',
     }
   }
 
@@ -208,18 +214,20 @@ export class TwinTargetChallenge implements Challenge {
     const r = this.renderer
     const { width, height } = r.getContext()
 
-    r.clear('#0B1020')
+    r.drawBackdrop()
 
-    // Draw zones
+    // Draw the two play zones.
     r.drawRect(20, 60, width / 2 - 40, height - 120, {
-      fillColor: '#121C2C',
-      strokeColor: '#2a3a4e',
+      fillColor: 'rgba(18, 28, 44, 0.55)',
+      strokeColor: PALETTE.stroke,
       lineWidth: 2,
+      radius: 12,
     })
     r.drawRect(width / 2 + 20, 60, width / 2 - 40, height - 120, {
-      fillColor: '#121C2C',
-      strokeColor: '#2a3a4e',
+      fillColor: 'rgba(18, 28, 44, 0.55)',
+      strokeColor: PALETTE.stroke,
       lineWidth: 2,
+      radius: 12,
     })
 
     // Draw cursors and targets
@@ -230,29 +238,38 @@ export class TwinTargetChallenge implements Challenge {
     const remaining = Math.max(0, this.duration - this.sessionTime)
     r.drawCenteredText(`Session: ${remaining.toFixed(1)}s`, width / 2, 30, {
       font: '18px "JetBrains Mono", monospace',
-      color: '#E8F1FF',
+      color: PALETTE.ink,
     })
 
     r.drawCenteredText(`Round: ${this.roundTime.toFixed(1)}s`, width / 2, 55, {
       font: '14px "JetBrains Mono", monospace',
-      color: '#8CA4C2',
+      color: PALETTE.inkDim,
     })
 
-    r.drawCenteredText(`Score: ${this.score}  Streak: x${this.streak}`, width / 2, height - 20, {
+    r.drawCenteredText(`SCORE: ${this.score}   STREAK: x${this.streak}`, width / 2, height - 20, {
       font: '16px "JetBrains Mono", monospace',
-      color: '#F6C453',
+      color: this.grade === 'F' ? PALETTE.gold : gradeColor(this.grade),
+      glow: 10,
     })
   }
 
   private drawCursor(r: Renderer, cursor: Cursor): void {
-    // Target
+    // Zone / stick label so the two sides aren't distinguished by colour alone.
+    r.drawCenteredText(cursor.label, (cursor.zoneLeft + cursor.zoneRight) / 2, 48, {
+      font: 'bold 14px "JetBrains Mono", monospace',
+      color: cursor.color,
+      glow: 8,
+    })
+
+    // Target (ring + centre dot)
     r.drawCircle(cursor.targetX, cursor.targetY, TARGET_RADIUS, {
       strokeColor: cursor.color,
       lineWidth: 3,
+      glow: 14,
+      glowColor: cursor.color,
     })
-    r.drawCenteredText('●', cursor.targetX, cursor.targetY, {
-      font: '16px "JetBrains Mono", monospace',
-      color: cursor.color,
+    r.drawCircle(cursor.targetX, cursor.targetY, 4, {
+      fillColor: cursor.color,
     })
 
     // Cursor
@@ -260,6 +277,8 @@ export class TwinTargetChallenge implements Challenge {
       fillColor: cursor.color,
       strokeColor: '#ffffff',
       lineWidth: 2,
+      glow: 12,
+      glowColor: cursor.color,
     })
   }
 
@@ -296,7 +315,7 @@ export class TwinTargetChallenge implements Challenge {
     this.leftCursor = null
     this.rightCursor = null
 
-    // Only spawn targets if renderer exists (for testing, skip canvas setup)
+    // Only spawn targets if renderer exists (tests skip canvas setup)
     if (this.renderer) {
       this.spawnTargets()
     }

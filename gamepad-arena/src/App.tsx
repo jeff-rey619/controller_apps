@@ -44,12 +44,19 @@ const DETAIL_LABELS: Record<string, string> = {
   rotations: 'Rotations',
   simultaneousPct: 'Simultaneous',
   smoothnessPct: 'Smoothness',
+  completed: 'Rounds',
+  clean: 'Clean',
+  bestStreak: 'Best Streak',
+  avgTime: 'Avg Time',
+  accuracy: 'Accuracy',
 }
 
 function formatDetail(key: string, value: number): string {
   if (key === 'maxCombo') return `x${value}`
   if (key.endsWith('Pct')) return `${Math.round(value)}%`
-  if (key === 'avgInterval') return `${value.toFixed(2)}s`
+  if (key === 'avgInterval' || key === 'avgTime') return `${value.toFixed(2)}s`
+  if (key === 'accuracy') return `${Math.round(value)}%`
+  if (key === 'bestStreak') return `x${value}`
   if (key === 'pressesPerSecond' || key === 'rotations') return value.toFixed(1)
   return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1)
 }

@@ -17,7 +17,11 @@ export const TIMING = {
   challengeDurations: {
     'button-blitz': 10,
     'dual-orbit': 15,
+    'twin-target': 60,
   },
+
+  /** Twin Target: time limit for a single target-pair round (seconds). */
+  twinTargetRoundSeconds: 4,
 } as const
 
 export type ChallengeId = keyof typeof TIMING.challengeDurations
