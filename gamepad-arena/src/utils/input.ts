@@ -2,9 +2,10 @@
  * Gamepad input normalization and deadzone handling
  */
 
-import type { NormalizedInput } from '../types'
+import type { NormalizedInput, ButtonMapping } from '../types'
+export type { ButtonMapping }
 
-// Standard gamepad button indices
+// Standard gamepad button indices (XInput layout)
 export const BUTTON_INDEX = {
   A: 0,
   B: 1,
@@ -38,11 +39,78 @@ const DEFAULT_DEADZONE = 0.15
 const TRIGGER_THRESHOLD = 0.1
 
 /**
+ * Default button mapping (standard XInput layout)
+ */
+export const DEFAULT_BUTTON_MAPPING: ButtonMapping = {
+  a: 0,
+  b: 1,
+  x: 2,
+  y: 3,
+  lb: 4,
+  rb: 5,
+  lt: 6,
+  rt: 7,
+  back: 8,
+  start: 9,
+  ls: 10,
+  rs: 11,
+  dpadUp: 12,
+  dpadDown: 13,
+  dpadLeft: 14,
+  dpadRight: 15,
+}
+
+/**
+ * Known controller mappings
+ */
+export const KNOWN_MAPPINGS: Record<string, ButtonMapping> = {
+  // 8BitDo Ultimate 2C Wireless
+  // User reports: Start button = RS click (index 11), RT button acts as Start (index 9)
+  // DPad keys are shifted
+  '8bitdo ultimate 2c wireless': {
+    a: 0,
+    b: 1,
+    x: 2,
+    y: 3,
+    lb: 4,
+    rb: 5,
+    lt: 6,
+    rt: 7,
+    back: 8,
+    start: 11,  // Physical Start button = RS click
+    ls: 10,
+    rs: 9,   // RS click is at index 9 (RT position)
+    dpadUp: 12,
+    dpadDown: 13,
+    dpadLeft: 14,
+    dpadRight: 15,
+  },
+  // 8BitDo Pro 2
+  '8bitdo pro 2': {
+    a: 0,
+    b: 1,
+    x: 2,
+    y: 3,
+    lb: 4,
+    rb: 5,
+    lt: 6,
+    rt: 7,
+    back: 8,
+    start: 9,
+    ls: 10,
+    rs: 11,
+    dpadUp: 12,
+    dpadDown: 13,
+    dpadLeft: 14,
+    dpadRight: 15,
+  },
+}
+
+/**
  * Apply deadzone to a single axis value
  */
 export function applyDeadzone(value: number, deadzone: number = DEFAULT_DEADZONE): number {
   if (Math.abs(value) < deadzone) return 0
-  // Rescale to [0, 1] range outside deadzone
   const sign = value > 0 ? 1 : -1
   return sign * (Math.abs(value) - deadzone) / (1 - deadzone)
 }
@@ -62,14 +130,49 @@ export function isButtonPressed(button: GamepadButton): boolean {
 }
 
 /**
+ * Detect controller mapping from gamepad ID
+ */
+export function detectMapping(gamepad: Gamepad): ButtonMapping {
+  const id = gamepad.id.toLowerCase()
+  for (const [key, mapping] of Object.entries(KNOWN_MAPPINGS)) {
+    if (id.includes(key)) {
+      console.log('[Input] Detected known mapping for:', key)
+      return mapping
+    }
+  }
+  // Check for 8BitDo in general
+  if (id.includes('8bitdo')) {
+    console.log('[Input] Using generic 8BitDo mapping')
+    return KNOWN_MAPPINGS['8bitdo ultimate 2c wireless']
+  }
+  return DEFAULT_BUTTON_MAPPING
+}
+
+/**
  * Normalize raw gamepad input to our standard format
  */
 export function normalizeGamepadInput(
   gamepad: Gamepad,
-  deadzone: number = DEFAULT_DEADZONE
+  deadzone: number = DEFAULT_DEADZONE,
+  customMapping?: ButtonMapping
 ): NormalizedInput {
   const axes = gamepad.axes
   const buttons = gamepad.buttons
+  
+  // Use custom mapping, detected mapping, or default
+  const mapping = customMapping || detectMapping(gamepad)
+
+  // Helper to safely get button by mapped index
+  const getBtn = (key: keyof ButtonMapping) => {
+    const idx = mapping[key]
+    return buttons[idx] ? isButtonPressed(buttons[idx]) : false
+  }
+
+  // Helper for analog triggers
+  const getTrigger = (key: 'lt' | 'rt') => {
+    const idx = mapping[key]
+    return normalizeTrigger(buttons[idx]?.value ?? 0)
+  }
 
   return {
     axes: {
@@ -81,24 +184,24 @@ export function normalizeGamepadInput(
         x: applyDeadzone(axes[AXIS_INDEX.RIGHT_STICK_X] ?? 0, deadzone),
         y: applyDeadzone(axes[AXIS_INDEX.RIGHT_STICK_Y] ?? 0, deadzone),
       },
-      leftTrigger: normalizeTrigger(axes[4] ?? buttons[BUTTON_INDEX.LT]?.value ?? 0),
-      rightTrigger: normalizeTrigger(axes[5] ?? buttons[BUTTON_INDEX.RT]?.value ?? 0),
+      leftTrigger: getTrigger('lt'),
+      rightTrigger: getTrigger('rt'),
     },
     buttons: {
-      a: isButtonPressed(buttons[BUTTON_INDEX.A]),
-      b: isButtonPressed(buttons[BUTTON_INDEX.B]),
-      x: isButtonPressed(buttons[BUTTON_INDEX.X]),
-      y: isButtonPressed(buttons[BUTTON_INDEX.Y]),
-      lb: isButtonPressed(buttons[BUTTON_INDEX.LB]),
-      rb: isButtonPressed(buttons[BUTTON_INDEX.RB]),
-      back: isButtonPressed(buttons[BUTTON_INDEX.BACK]),
-      start: isButtonPressed(buttons[BUTTON_INDEX.START]),
-      ls: isButtonPressed(buttons[BUTTON_INDEX.LS]),
-      rs: isButtonPressed(buttons[BUTTON_INDEX.RS]),
-      dpadUp: isButtonPressed(buttons[BUTTON_INDEX.DPAD_UP]),
-      dpadDown: isButtonPressed(buttons[BUTTON_INDEX.DPAD_DOWN]),
-      dpadLeft: isButtonPressed(buttons[BUTTON_INDEX.DPAD_LEFT]),
-      dpadRight: isButtonPressed(buttons[BUTTON_INDEX.DPAD_RIGHT]),
+      a: getBtn('a'),
+      b: getBtn('b'),
+      x: getBtn('x'),
+      y: getBtn('y'),
+      lb: getBtn('lb'),
+      rb: getBtn('rb'),
+      back: getBtn('back'),
+      start: getBtn('start'),
+      ls: getBtn('ls'),
+      rs: getBtn('rs'),
+      dpadUp: getBtn('dpadUp'),
+      dpadDown: getBtn('dpadDown'),
+      dpadLeft: getBtn('dpadLeft'),
+      dpadRight: getBtn('dpadRight'),
     },
     rawAxes: [...axes],
     rawButtons: [...buttons],
@@ -129,12 +232,11 @@ export function getRotationDirection(
   threshold: number = 0.1
 ): number {
   let diff = currAngle - prevAngle
-  // Normalize to [-PI, PI]
   while (diff > Math.PI) diff -= 2 * Math.PI
   while (diff < -Math.PI) diff += 2 * Math.PI
 
   if (Math.abs(diff) < threshold) return 0
-  return diff > 0 ? 1 : -1 // Positive = CW (in screen coords where Y is down)
+  return diff > 0 ? 1 : -1
 }
 
 /**

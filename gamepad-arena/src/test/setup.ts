@@ -18,7 +18,7 @@ const mockGamepad = {
   mapping: 'standard',
   axes: [0, 0, 0, 0],
   buttons: Array(17).fill(null).map(() => ({ pressed: false, value: 0, touched: false })),
-  vibrationActuator: null as any,
+  vibrationActuator: null as unknown as Gamepad['vibrationActuator'],
 }
 
 Object.defineProperty(navigator, 'getGamepads', {

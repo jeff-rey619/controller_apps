@@ -55,7 +55,7 @@ describe('input utils', () => {
         mapping: 'standard',
         axes: [0.5, -0.5, 0.2, -0.2, 0, 0],
         buttons: Array(17).fill(null).map((_, i) => ({ pressed: i === 0, value: i === 0 ? 1 : 0, touched: false })),
-        vibrationActuator: null as any,
+        vibrationActuator: null as unknown as Gamepad['vibrationActuator'],
       }
 
       const input = normalizeGamepadInput(mockGamepad as Gamepad, 0.15)

@@ -25,7 +25,8 @@ export class ButtonBlitzChallenge implements Challenge {
   private maxCombo = 0
 
   setup(ctx: CanvasRenderingContext2D, _gamepad: Gamepad): void {
-    this.renderer = new Renderer(ctx.canvas.parentElement!)
+    this.renderer?.destroy()
+    this.renderer = new Renderer(ctx.canvas)
     this.reset()
   }
 

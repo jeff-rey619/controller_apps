@@ -70,10 +70,30 @@ export interface GamepadStatus {
   index: number
 }
 
+export interface ButtonMapping {
+  a: number
+  b: number
+  x: number
+  y: number
+  lb: number
+  rb: number
+  lt: number
+  rt: number
+  back: number
+  start: number
+  ls: number
+  rs: number
+  dpadUp: number
+  dpadDown: number
+  dpadLeft: number
+  dpadRight: number
+}
+
 export interface Settings {
   deadzone: number
   vibration: boolean
   highContrast: boolean
   reducedMotion: boolean
   audioEnabled: boolean
+  customMapping?: ButtonMapping
 }

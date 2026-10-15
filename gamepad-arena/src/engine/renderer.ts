@@ -16,13 +16,20 @@ export class Renderer {
   private width = 0
   private height = 0
   private resizeObserver: ResizeObserver | null = null
+  private ownsCanvas: boolean
 
-  constructor(container: HTMLElement) {
-    this.canvas = document.createElement('canvas')
-    this.canvas.style.width = '100%'
-    this.canvas.style.height = '100%'
-    this.canvas.style.display = 'block'
-    container.appendChild(this.canvas)
+  constructor(target: HTMLElement) {
+    if (target instanceof HTMLCanvasElement) {
+      this.canvas = target
+      this.ownsCanvas = false
+    } else {
+      this.canvas = document.createElement('canvas')
+      this.canvas.style.width = '100%'
+      this.canvas.style.height = '100%'
+      this.canvas.style.display = 'block'
+      target.appendChild(this.canvas)
+      this.ownsCanvas = true
+    }
 
     const context = this.canvas.getContext('2d')
     if (!context) throw new Error('Canvas 2D context not supported')
@@ -31,8 +38,11 @@ export class Renderer {
     this.dpr = window.devicePixelRatio || 1
     this.resize()
 
-    this.resizeObserver = new ResizeObserver(() => this.resize())
-    this.resizeObserver.observe(container)
+    const container = this.canvas.parentElement
+    if (container) {
+      this.resizeObserver = new ResizeObserver(() => this.resize())
+      this.resizeObserver.observe(container)
+    }
 
     window.addEventListener('resize', this.resize)
   }
@@ -352,6 +362,8 @@ export class Renderer {
   destroy(): void {
     this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.resize)
-    this.canvas.remove()
+    if (this.ownsCanvas) {
+      this.canvas.remove()
+    }
   }
 }
