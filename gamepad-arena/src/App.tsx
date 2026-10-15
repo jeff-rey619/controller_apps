@@ -7,6 +7,7 @@ import { useGamepad } from './hooks/useGamepad'
 import { normalizeGamepadInput, DEFAULT_BUTTON_MAPPING, type ButtonMapping } from './utils/input'
 import { GameLoop } from './engine/gameLoop'
 import { Renderer } from './engine/renderer'
+import { setReducedMotion } from './engine/palette'
 import { challenges, getChallenge } from './challenges'
 import { loadPersonalBest, savePersonalBest, loadSettings, saveSettings } from './store/localStorage'
 import type { GameState, ScoreResult, PersonalBest, Settings, Challenge } from './types'
@@ -49,6 +50,33 @@ function formatDetail(key: string, value: number): string {
   return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1)
 }
 
+/**
+ * Decorative gamepad silhouette (inline SVG so it scales and inherits colour via
+ * currentColor). Purely ornamental — always aria-hidden.
+ */
+function ControllerGlyph({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 220 140" fill="none" aria-hidden="true" focusable="false">
+      <path
+        d="M70 34 Q110 18 150 34 Q188 46 196 92 Q200 124 172 128 Q150 130 138 104 Q122 92 110 92 Q98 92 82 104 Q70 130 48 128 Q20 124 24 92 Q32 46 70 34 Z"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinejoin="round"
+      />
+      {/* Left stick / right stick */}
+      <circle cx="78" cy="74" r="12" stroke="currentColor" strokeWidth="4" />
+      <circle cx="132" cy="86" r="12" stroke="currentColor" strokeWidth="4" />
+      {/* D-pad */}
+      <path d="M96 92 h14 M103 85 v14" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
+      {/* Four face buttons */}
+      <circle cx="158" cy="58" r="6" stroke="currentColor" strokeWidth="3" />
+      <circle cx="158" cy="86" r="6" stroke="currentColor" strokeWidth="3" />
+      <circle cx="144" cy="72" r="6" stroke="currentColor" strokeWidth="3" />
+      <circle cx="172" cy="72" r="6" stroke="currentColor" strokeWidth="3" />
+    </svg>
+  )
+}
+
 function App() {
   const { connected, gamepad, gamepads } = useGamepad(0)
   const [gameState, setGameState] = useState<GameState>('idle')
@@ -58,6 +86,7 @@ function App() {
   const [personalBests, setPersonalBests] = useState<Record<string, PersonalBest>>({})
   const [lastResult, setLastResult] = useState<ScoreResult | null>(null)
   const [countdownValue, setCountdownValue] = useState<number | null>(null)
+  const [osReducedMotion, setOsReducedMotion] = useState(false)
 
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const gameLoopRef = useRef<GameLoop | null>(null)
@@ -66,6 +95,8 @@ function App() {
   const animationFrameRef = useRef<number | null>(null)
   const startButtonPrevRef = useRef(false)
   const resultHandledRef = useRef(false)
+  const settingsPanelRef = useRef<HTMLDivElement>(null)
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null)
   const keyboardStateRef = useRef({
     a: false,
     start: false,
@@ -74,6 +105,22 @@ function App() {
 
   // Use custom mapping from settings
   const currentMapping = useMemo(() => settings.customMapping || DEFAULT_BUTTON_MAPPING, [settings.customMapping])
+
+  // Effective reduced motion: OS preference OR the in-app toggle.
+  const reducedMotionActive = osReducedMotion || settings.reducedMotion
+
+  // Track the OS reduced-motion preference and keep the canvas flag in sync.
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const apply = () => setOsReducedMotion(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    setReducedMotion(reducedMotionActive)
+  }, [reducedMotionActive])
 
   // Keyboard fallback for testing
   useEffect(() => {
@@ -220,6 +267,56 @@ function App() {
     return () => cancelAnimationFrame(frameId)
   }, [gameState])
 
+  // Settings modal: move focus in on open, trap Tab, restore focus on close.
+  useEffect(() => {
+    if (!showSettings) return
+    const panel = settingsPanelRef.current
+    const trigger = settingsTriggerRef.current
+    const focusables = () =>
+      panel
+        ? Array.from(
+            panel.querySelectorAll<HTMLElement>(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            )
+          ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null)
+        : []
+
+    // Focus the first focusable control inside the dialog.
+    const first = focusables()[0]
+    first?.focus()
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowSettings(false)
+        return
+      }
+      if (e.key !== 'Tab') return
+      const items = focusables()
+      if (items.length === 0) return
+      const firstEl = items[0]
+      const lastEl = items[items.length - 1]
+      const activeEl = document.activeElement as HTMLElement | null
+      if (e.shiftKey && activeEl === firstEl) {
+        e.preventDefault()
+        lastEl.focus()
+      } else if (!e.shiftKey && activeEl === lastEl) {
+        e.preventDefault()
+        firstEl.focus()
+      } else if (activeEl && panel && !panel.contains(activeEl)) {
+        e.preventDefault()
+        firstEl.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true)
+      // Restore focus to the control that opened the dialog.
+      trigger?.focus()
+    }
+  }, [showSettings])
+
   const updateSetting = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings((prev) => { const next = { ...prev, [key]: value }; saveSettings(next); return next })
   }, [])
@@ -288,7 +385,7 @@ function App() {
             </div>
             <div className="btn-group">
               <button className="btn btn-primary" onClick={() => startChallenge(selectedChallengeId)} disabled={!connected}>START</button>
-              <button className="btn btn-secondary" onClick={() => setShowSettings(true)}>SETTINGS</button>
+              <button ref={settingsTriggerRef} className="btn btn-secondary" onClick={() => setShowSettings(true)}>SETTINGS</button>
             </div>
           </div>
         )
@@ -308,17 +405,19 @@ function App() {
         const pb = personalBests[selectedChallengeId]
         const isNewPB = pb && pb.timestamp === lastResult.timestamp
         const gradeColor = { S: 'var(--accent-gold)', A: 'var(--accent-magenta)', B: 'var(--accent-cyan)', C: 'var(--accent-green)', D: 'var(--accent-orange)', F: 'var(--accent-red)' }[lastResult.grade]
+        const announcement = `Challenge complete. Grade ${lastResult.grade}. Score ${lastResult.score.toLocaleString()}.${isNewPB ? ' New personal best.' : ''}`
         return (
           <div className="screen result-screen">
+            <div className="sr-only" role="status" aria-live="assertive">{announcement}</div>
             <h2 className="screen-title">CHALLENGE COMPLETE</h2>
-            <div className="result-grade" style={{ color: gradeColor }}>{lastResult.grade}</div>
-            <div className="result-score">{lastResult.score.toLocaleString()}</div>
+            <div className="result-grade" style={{ color: gradeColor }} aria-label={`Grade ${lastResult.grade}`}>{lastResult.grade}</div>
+            <div className="result-score" aria-label={`Score ${lastResult.score.toLocaleString()}`}>{lastResult.score.toLocaleString()}</div>
             <div className="result-stats">
               {Object.entries(lastResult.details).map(([key, value]) => (
                 <div className="result-stat" key={key}><span className="result-stat-label">{DETAIL_LABELS[key] ?? key}</span><span className="result-stat-value">{formatDetail(key, value)}</span></div>
               ))}
             </div>
-            {isNewPB && <div className="result-pb">🏆 NEW PERSONAL BEST!</div>}
+            {isNewPB && <div className="result-pb"><span aria-hidden="true">🏆 </span>NEW PERSONAL BEST!</div>}
             <div className="btn-group"><button className="btn btn-primary" onClick={() => startChallenge(selectedChallengeId)}>RETRY</button><button className="btn btn-secondary" onClick={() => gameLoopRef.current?.reset()}>MENU</button></div>
           </div>
         )
@@ -331,73 +430,76 @@ function App() {
   const renderSettings = () => {
     if (!showSettings) return null
     return (
-      <div className="screen" style={{ maxWidth: '580px' }} role="dialog" aria-modal="true" aria-labelledby="settings-title">
-        <h2 id="settings-title" className="screen-title">SETTINGS</h2>
-        <div className="settings-group">
-          <div className="setting-row">
-            <label className="setting-label">Deadzone</label>
-            <div className="setting-control">
-              <input type="range" className="setting-slider" min="0" max="0.5" step="0.01" value={settings.deadzone} onChange={(e) => updateSetting('deadzone', parseFloat(e.target.value))} aria-label="Deadzone" />
-              <span style={{ fontSize: '0.75rem', color: 'var(--fg-secondary)' }}>{Math.round(settings.deadzone * 100)}%</span>
+      <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowSettings(false) }}>
+        <div ref={settingsPanelRef} className="screen" style={{ maxWidth: '580px' }} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1}>
+          <h2 id="settings-title" className="screen-title">SETTINGS</h2>
+          <div className="settings-group">
+            <div className="setting-row">
+              <label className="setting-label" htmlFor="set-deadzone">Deadzone</label>
+              <div className="setting-control">
+                <input id="set-deadzone" type="range" className="setting-slider" min="0" max="0.5" step="0.01" value={settings.deadzone} onChange={(e) => updateSetting('deadzone', parseFloat(e.target.value))} aria-label="Deadzone" aria-valuetext={`${Math.round(settings.deadzone * 100)} percent`} />
+                <span style={{ fontSize: '0.75rem', color: 'var(--fg-secondary)' }}>{Math.round(settings.deadzone * 100)}%</span>
+              </div>
             </div>
-          </div>
 
-          <div className="setting-row">
-            <label className="setting-label">Vibration</label>
-            <div className="setting-control">
-              <label className="setting-toggle"><input type="checkbox" checked={settings.vibration} onChange={(e) => updateSetting('vibration', e.target.checked)} aria-label="Vibration" /><span className="setting-toggle-slider" /></label>
+            <div className="setting-row">
+              <label className="setting-label" htmlFor="set-vibration">Vibration</label>
+              <div className="setting-control">
+                <label className="setting-toggle"><input id="set-vibration" type="checkbox" checked={settings.vibration} onChange={(e) => updateSetting('vibration', e.target.checked)} aria-label="Vibration" /><span className="setting-toggle-slider" aria-hidden="true" /></label>
+              </div>
             </div>
-          </div>
 
-          <div className="setting-row">
-            <label className="setting-label">High Contrast</label>
-            <div className="setting-control">
-              <label className="setting-toggle"><input type="checkbox" checked={settings.highContrast} onChange={(e) => updateSetting('highContrast', e.target.checked)} aria-label="High Contrast" /><span className="setting-toggle-slider" /></label>
+            <div className="setting-row">
+              <label className="setting-label" htmlFor="set-contrast">High Contrast</label>
+              <div className="setting-control">
+                <label className="setting-toggle"><input id="set-contrast" type="checkbox" checked={settings.highContrast} onChange={(e) => updateSetting('highContrast', e.target.checked)} aria-label="High Contrast" /><span className="setting-toggle-slider" aria-hidden="true" /></label>
+              </div>
             </div>
-          </div>
 
-          <div className="setting-row">
-            <label className="setting-label">Reduced Motion</label>
-            <div className="setting-control">
-              <label className="setting-toggle"><input type="checkbox" checked={settings.reducedMotion} onChange={(e) => updateSetting('reducedMotion', e.target.checked)} aria-label="Reduced Motion" /><span className="setting-toggle-slider" /></label>
+            <div className="setting-row">
+              <label className="setting-label" htmlFor="set-motion">Reduced Motion</label>
+              <div className="setting-control">
+                <label className="setting-toggle"><input id="set-motion" type="checkbox" checked={settings.reducedMotion} onChange={(e) => updateSetting('reducedMotion', e.target.checked)} aria-label="Reduced Motion" /><span className="setting-toggle-slider" aria-hidden="true" /></label>
+              </div>
             </div>
-          </div>
 
-          <div className="setting-row">
-            <label className="setting-label">Audio</label>
-            <div className="setting-control">
-              <label className="setting-toggle"><input type="checkbox" checked={settings.audioEnabled} onChange={(e) => updateSetting('audioEnabled', e.target.checked)} aria-label="Audio" /><span className="setting-toggle-slider" /></label>
+            <div className="setting-row">
+              <label className="setting-label" htmlFor="set-audio">Audio</label>
+              <div className="setting-control">
+                <label className="setting-toggle"><input id="set-audio" type="checkbox" checked={settings.audioEnabled} onChange={(e) => updateSetting('audioEnabled', e.target.checked)} aria-label="Audio" /><span className="setting-toggle-slider" aria-hidden="true" /></label>
+              </div>
             </div>
-          </div>
 
-          {/* Button Mapping */}
-          <div style={{ marginTop: 'var(--space-xl)', paddingTop: 'var(--space-lg)', borderTop: '1px solid var(--border-color)' }}>
-            <h3 style={{ fontFamily: 'var(--font-ui)', color: 'var(--accent-cyan)', marginBottom: 'var(--space-md)' }}>BUTTON MAPPING</h3>
-            <p className="mapping-hint">Auto-detected for known controllers. Edit below to customize.</p>
-            <div className="mapping-grid">
-              {(Object.keys(DEFAULT_BUTTON_MAPPING) as Array<keyof ButtonMapping>).map((key) => (
-                <div key={key} className="mapping-item">
-                  <span className="mapping-label">{BUTTON_LABELS[key]}</span>
-                  <select
-                    className="mapping-select"
-                    value={currentMapping[key]}
-                    onChange={(e) => updateMapping(key, parseInt(e.target.value, 10))}
-                  >
-                    {Array.from({ length: 20 }, (_, i) => i).map((i) => (
-                      <option key={i} value={i}>
-                        Button {i}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+            {/* Button Mapping */}
+            <div style={{ marginTop: 'var(--space-xl)', paddingTop: 'var(--space-lg)', borderTop: '1px solid var(--border-color)' }}>
+              <h3 style={{ fontFamily: 'var(--font-ui)', color: 'var(--accent-cyan)', marginBottom: 'var(--space-md)' }}>BUTTON MAPPING</h3>
+              <p className="mapping-hint">Auto-detected for known controllers. Edit below to customize.</p>
+              <div className="mapping-grid">
+                {(Object.keys(DEFAULT_BUTTON_MAPPING) as Array<keyof ButtonMapping>).map((key) => (
+                  <div key={key} className="mapping-item">
+                    <label className="mapping-label" htmlFor={`map-${key}`}>{BUTTON_LABELS[key]}</label>
+                    <select
+                      id={`map-${key}`}
+                      className="mapping-select"
+                      value={currentMapping[key]}
+                      onChange={(e) => updateMapping(key, parseInt(e.target.value, 10))}
+                    >
+                      {Array.from({ length: 20 }, (_, i) => i).map((i) => (
+                        <option key={i} value={i}>
+                          Button {i}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <button className="btn btn-secondary" style={{ marginTop: 'var(--space-md)' }} onClick={resetMapping}>
+                RESET TO DEFAULTS
+              </button>
             </div>
-            <button className="btn btn-secondary" style={{ marginTop: 'var(--space-md)' }} onClick={resetMapping}>
-              RESET TO DEFAULTS
-            </button>
           </div>
+          <div className="btn-group"><button className="btn btn-primary" onClick={() => setShowSettings(false)}>DONE</button><button className="btn btn-danger" onClick={() => { if (confirm('Clear all personal bests and settings?')) { localStorage.clear(); setPersonalBests({}); setSettings(loadSettings()) }}}>CLEAR DATA</button></div>
         </div>
-        <div className="btn-group"><button className="btn btn-primary" onClick={() => setShowSettings(false)}>DONE</button><button className="btn btn-danger" onClick={() => { if (confirm('Clear all personal bests and settings?')) { localStorage.clear(); setPersonalBests({}); setSettings(loadSettings()) }}}>CLEAR DATA</button></div>
       </div>
     )
   }
@@ -420,8 +522,19 @@ function App() {
     )
   }
 
+  const containerClass =
+    'canvas-container' +
+    (reducedMotionActive ? ' reduced-motion' : '') +
+    (settings.highContrast ? ' high-contrast' : '')
+
   return (
-    <div className="canvas-container" ref={canvasContainerRef}>
+    <div className={containerClass} ref={canvasContainerRef}>
+      <div className="bg-art" aria-hidden="true">
+        <ControllerGlyph className="art-xbox art-1" />
+        <ControllerGlyph className="art-ps art-2" />
+        <ControllerGlyph className="art-xbox art-3" />
+        <ControllerGlyph className="art-ps art-4" />
+      </div>
       <div className="ui-overlay">{renderScreen()}{renderSettings()}</div>
       {gameState === 'countdown' && countdownValue !== null && (
         <div className="countdown-overlay" aria-live="polite" aria-atomic="true"><span className={"countdown-number " + (countdownValue === 0 ? 'countdown-go' : '')}>{countdownValue === 0 ? 'GO!' : countdownValue}</span></div>

@@ -40,12 +40,27 @@
 - `audioEnabled` setting is a placeholder
 
 ### Visuals
-- No CRT shader (just scanline overlay)
-- No particle effects
+- Neon Xbox-first theme with layered gradients, glassy panels, canvas glow and
+  decorative gamepad artwork (iteration 9)
+- No CRT shader (just a scanline overlay)
+- No particle system yet (press feedback is a single expanding glow ring)
 - Font loading: JetBrains Mono/Orbitron may not load on all systems
 
+### Accessibility
+- WCAG 2.1 AA pass in iteration 9: all text/UI contrast ≥ AA (lowest 5.7:1),
+  face buttons / rings / grades carry letters or labels (never colour alone),
+  Settings is a focus-trapped modal (Escape closes, focus restored), reduced
+  motion and high-contrast honoured (OS media queries + in-app toggles),
+  interactive targets ≥ 44x44 px, result announced via an `aria-live` region.
+- High-contrast mode keeps the neon glow on primary buttons (cosmetic only;
+  borders + text already satisfy contrast) — could be flattened further.
+- Colour-vision-deficiency check was reasoned from the palette + mandatory
+  letters/labels, not run through an automated CVD simulator.
+- Gameplay HUD is drawn as canvas pixels; the DOM result screen mirrors the
+  score/grade for assistive tech, but live in-challenge values are not exposed.
+
 ### Testing
-- No E2E tests (Playwright not configured)
+- No E2E tests (Playwright not configured for the project)
 - No visual regression tests
 - Limited unit test coverage (only input utils)
 
@@ -64,8 +79,9 @@
 1. Add controller selection UI when multiple connected
 2. Implement vibration using GamepadHapticActuator
 3. Implement remaining challenges (Precision Run, Combo Master, Trigger Control, Rhythm Combo)
-4. Add Web Audio sound effects
-5. Configure Playwright for E2E testing
+4. Add Web Audio sound effects (the `audioEnabled` toggle is still a placeholder)
+5. Configure Playwright for E2E testing (a throwaway headless-Chromium harness
+   with a synthetic gamepad was used to verify iteration 9 manually)
 6. Add font loading with fallbacks
 7. Implement daily challenge system
 8. Add replay recording/playback
@@ -79,3 +95,4 @@
 - "NEW PERSONAL BEST!" banner never appeared (iteration 7)
 - Dual Orbit challenge implemented (iteration 8)
 - Lint is green: `no-case-declarations` and `no-explicit-any` issues resolved (iteration 7)
+- Neon UI redesign, background controller art and WCAG 2.1 AA accessibility (iteration 9)

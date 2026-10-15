@@ -141,6 +141,7 @@ interface Challenge {
 - [x] Controller connection screen
 - [x] Settings: deadzone, vibration (if supported)
 - [x] Keyboard fallback for testing (Space = A, Enter = Start, Escape = menu)
+- [x] Neon Xbox-first visual redesign + background controller art (iteration 9)
 
 ### 5.2 Audio
 - [ ] Web Audio API: beeps, press sounds, success/fail stings
@@ -150,6 +151,7 @@ interface Challenge {
 - [x] High contrast mode
 - [x] Reduced motion
 - [x] Screen reader announcements for scores
+- [x] WCAG 2.1 AA pass: contrast, never-colour-alone, modal focus trap, 44px targets (iteration 9)
 
 ### 5.4 Testing Checklist
 - [ ] Xbox controller (Chrome/Firefox/Safari)
@@ -172,6 +174,7 @@ Each iteration creates a file in `spec/`:
 - `spec/iteration-06-button-mapping.md` — Flexible button mapping & 8BitDo support
 - `spec/iteration-07-startup-fixes.md` — Engine init, rendering, layout & result-screen fixes
 - `spec/iteration-08-dual-orbit.md` — Second challenge (Dual Orbit)
+- `spec/iteration-09-neon-ui-accessibility.md` — Neon UI redesign + accessibility
 - `spec/known-issues.md` — Browser/controller quirks
 
 ---
